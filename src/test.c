@@ -2,11 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct Tag {
-  char *name;
-  int *subscriptions;
-  int subscriptions_count;
-} Tag;
+#define UPPER_A 65
+#define UPPER_Z 90
+#define LOWER_A 97
+#define LOWER_Z 122
+#define LINE_END 10
+#define SPACE 32
+#define ADD_SUB 43
+#define REMOVE_SUB 45
+#define HASHTAG 35
 
 int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, int ***subs, int **subs_count) {
   int i;
@@ -29,9 +33,6 @@ int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, 
     (*subs_count)[tag_index] = 1;
     (*subs)[tag_index] = malloc(sizeof(int));
     (*subs)[tag_index][0] = client_socket;
-
-    int a = (*subs_count)[0];
-    int b = (*subs_count)[1];
     return 1;
   } else {
     int found_client = 0;
@@ -78,7 +79,7 @@ int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count
           j++;
         }
       }
-      memcpy(((*subs)[tag_index]), aux, sizeof(aux));
+      memcpy(((*subs)[tag_index]), aux, sizeof(*aux));
       (*subs_count)[tag_index] = (*subs_count)[tag_index] - 1;
       free(aux);
       return 1;
@@ -88,32 +89,72 @@ int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count
   }
 }
 
+// int validateTag(char **string, char **buf, size_t size) {
+//   int i;
+//   int delimiter = -1;
+//   if ((*string)[size - 1] == SPACE) {
+//     delimiter = SPACE;
+//   } else if ((*string)[size - 1] == LINE_END) {
+//     delimiter = LINE_END;
+//   }
+
+//   if (delimiter != -1) {
+//     for (i = 0; i < size - 1; i++) {
+//       if (  // If this char is not an ascii letter
+//           !(((*string)[i] >= UPPER_A && (*string)[i] <= UPPER_Z) ||
+//             ((*string)[i] >= LOWER_A && (*string)[i] <= LOWER_Z))) {
+//         return 0;
+//       }
+//     }
+//     memcpy(*buf, *string, size - 1);
+//   } else {
+//     return 0;
+//   }
+//   return 1;
+// }
+
+int validateTag(char **string, char **buf, size_t size) {
+  int i;
+  int tag_size;
+  for (i = 0; i < size - 1; i++) {
+    if ((*string)[i] == SPACE || (*string)[i] == LINE_END) {
+      tag_size = i;
+      break;
+    }
+    if (  // If this char is not an ascii letter
+        !(((*string)[i] >= UPPER_A && (*string)[i] <= UPPER_Z) ||
+          ((*string)[i] >= LOWER_A && (*string)[i] <= LOWER_Z))) {
+      return 0;
+    }
+  }
+  *buf = malloc(tag_size * sizeof(char));
+  memcpy(*buf, *string, tag_size);
+
+  return 1;
+}
+
 int main(int argc, char **argv) {
-  int tags_count = 0;
-  char **tags = malloc(tags_count * sizeof(char *));
-  int **subs = malloc(tags_count * sizeof(int *));
-  int *subs_count = malloc(tags_count * sizeof(int));
+  char *message = "cole braço! #dota #overwatch #asad";
+  int message_size = strlen(message);
+  int i;
+  for (i = 0; i < message_size; i++) {
+    if (message[i] == HASHTAG) {
+      int sliced_message_size = message_size - i - 1;
+      char *sliced_message = malloc(sliced_message_size * sizeof(char));
+      memcpy(sliced_message, message + i + 1, sliced_message_size);
 
-  subscribe(1, "dota", &tags, &tags_count, &subs, &subs_count);
-  subscribe(5, "overwatch", &tags, &tags_count, &subs, &subs_count);
-  subscribe(5, "overwatch", &tags, &tags_count, &subs, &subs_count);
-  subscribe(50, "overwatch", &tags, &tags_count, &subs, &subs_count);
-  subscribe(5, "dota", &tags, &tags_count, &subs, &subs_count);
-  subscribe(3, "dota", &tags, &tags_count, &subs, &subs_count);
-  unsubscribe(3, "dota", &tags, &tags_count, &subs, &subs_count);
-  unsubscribe(3, "dota", &tags, &tags_count, &subs, &subs_count);
-  subscribe(3, "dota", &tags, &tags_count, &subs, &subs_count);
-
-  int j;
-  for (j = 0; j < tags_count; j++) {
-    printf("\n\tTag: %s\nClients Subscribed: ", tags[j]);
-    int i;
-    for (i = 0; i < subs_count[j]; i++) {
-      printf("%d", subs[j][i]);
-      if (i != subs_count[j] - 1) {
-        printf(", ");
+      char *tag;
+      if (validateTag(&sliced_message, &tag, sliced_message_size)) {
+        printf("Tag: %s\n", tag);
+        i += strlen(tag);
+      } else {
+        char *next_space = strchr(sliced_message, SPACE);
+        if (next_space == NULL) {
+          break;
+        } else {
+          i += (int)(next_space - sliced_message);
+        }
       }
     }
-    printf("\n");
   }
 }

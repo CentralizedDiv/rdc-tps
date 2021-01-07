@@ -46,7 +46,7 @@ void *listennw(void *data) {
 
     size_t count = recv(sdata->csock, buf, BUFSZ, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
-    printf("\n< %s> ", buf);
+    printf("\r< %s> ", buf);
     if (count == 0) {
       break;
     }
@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
 
   while (1) {
     if (sdata->csock == -1) {
-      printf("[Connection] Disconnected by %s\n", addrstr);
+      printf("\r[Connection] Disconnected by %s\n", addrstr);
       break;
     }
   }

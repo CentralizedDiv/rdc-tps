@@ -5,6 +5,8 @@
 
 void logexit(const char *msg);
 
-int addrparse(const char *addrstr, const char *portstr, struct sockaddr_in *addr);
-
 void addrtostr(const struct sockaddr_in *addr, char *str, size_t strsize);
+
+int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, int ***subs, int **subs_count);
+
+int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, int ***subs, int **subs_count);
