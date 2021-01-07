@@ -152,6 +152,51 @@ void check_kill(char *message) {
   }
 }
 
+#define BUF_SIZE 500
+
+// returns -1 for erros, or an int that is the offset for the next recv
+int read_buffer(char *buffer, char ***messages, int *messages_count) {
+  int i;
+  int current_message_start = 0;
+  int found_line_end = 0;
+  for (i = 0; i < strlen(buffer); i++) {
+    // @todo check invalid chars
+    if (buffer[i] == LINE_END) {
+      *messages_count = (*messages_count) + 1;
+      *messages = realloc(*messages, (*messages_count) * sizeof(char *));
+      (*messages)[(*messages_count) - 1] = malloc((i - current_message_start) * sizeof(char));
+      memcpy((*messages)[(*messages_count) - 1], buffer + current_message_start, i - current_message_start);
+      current_message_start = i + 1;
+
+      found_line_end = 1;
+    }
+  }
+
+  if (found_line_end) {
+    // If there is another message after the last message of this buffer
+    if (buffer[strlen(buffer) - 1] != LINE_END) {
+      // Copy the current message to the start of the buffer
+      memmove(buffer, &buffer[current_message_start], strlen(buffer) - current_message_start);
+      return strlen(buffer) - current_message_start;
+    } else {  // There is no splitted message
+      return 0;
+    }
+  } else {
+    if (i == BUF_SIZE - 1) {
+      // Something wrong, \n was not found in this current message
+      return -1;
+    } else {
+      // Splitted message
+      return strlen(buffer);
+    }
+  }
+
+  if (!found_line_end && i < BUF_SIZE - 1) {
+    // Splitted message
+    return 1;
+  }
+}
+
 void *client_thread(void *data) {
   struct thread_data *cdata = (struct thread_data *)data;
   struct sockaddr_in caddr = cdata->addr;
@@ -160,49 +205,74 @@ void *client_thread(void *data) {
   addrtostr(&caddr, caddrstr, BUFSZ);
   printf("[Client Connection] Client connected in %s\n", caddrstr);
 
+  int offset = 0;
+  int messages_count = 0;
+  char **messages = malloc(sizeof(char *));
+  char buffer[BUF_SIZE];
+  memset(buffer, 0, BUF_SIZE);
+
   while (1) {
     char message[BUFSZ];
     memset(message, 0, BUFSZ);
-    size_t count = recv(cdata->sock, message, BUFSZ - 1, 0);
+
+    size_t count = recv(cdata->sock, buffer + offset, BUF_SIZE, 0);
+    // If client disconnected
     if (count == 0) {
       break;
     }
-    printf("[Message] From: %s, %d bytes: %s\n", caddrstr, (int)count, message);
-    check_kill(message);
 
-    char *feedback = check_subscription_tags(message, cdata);
-    if (feedback != NULL) {
-      send(cdata->sock, feedback, BUFSZ, 0);
-    }
+    offset = read_buffer(buffer, &messages, &messages_count);
+    if (offset == -1) {
+      send(cdata->sock, "Invalid message!\n", 18, 0);
+    } else {
+      int i;
+      for (i = 0; i < messages_count; i++) {
+        char *message = messages[i];
+        printf("[Message] From: %s, %d bytes: %s\n", caddrstr, (int)count, message);
+        check_kill(message);
 
-    int tags_count = 0;
-    char **tags = malloc(sizeof(char *));
-    check_tags(message, &tags, &tags_count);
-    if (tags_count > 0) {
-      int i, j, k;
-      int clients_count = 0;
-      int *clients_to_notify = malloc(sizeof(int));
-      for (i = 0; i < tags_count; i++) {
-        for (j = 0; j < *(cdata->tags_count); j++) {
-          if (strcmp(cdata->tags[j], tags[i]) == 0) {
-            for (k = 0; k < cdata->subs_count[j]; k++) {
-              if (cdata->subs[j][k] != cdata->sock) {
-                add_if_not_exists(cdata->subs[j][k], &clients_to_notify, &clients_count);
+        char *feedback = check_subscription_tags(message, cdata);
+        if (feedback != NULL) {
+          send(cdata->sock, feedback, strlen(feedback), 0);
+        }
+
+        int tags_count = 0;
+        char **tags = malloc(sizeof(char *));
+        check_tags(message, &tags, &tags_count);
+        if (tags_count > 0) {
+          int i, j, k;
+          int clients_count = 0;
+          int *clients_to_notify = malloc(sizeof(int));
+          for (i = 0; i < tags_count; i++) {
+            for (j = 0; j < *(cdata->tags_count); j++) {
+              if (strcmp(cdata->tags[j], tags[i]) == 0) {
+                for (k = 0; k < cdata->subs_count[j]; k++) {
+                  if (cdata->subs[j][k] != cdata->sock) {
+                    add_if_not_exists(cdata->subs[j][k], &clients_to_notify, &clients_count);
+                  }
+                }
               }
             }
           }
+          strcat(message, "\n");
+          for (i = 0; i < clients_count; i++) {
+            send(clients_to_notify[i], message, strlen(message), 0);
+          }
         }
-      }
-      for (i = 0; i < clients_count; i++) {
-        strcat(message, "\n");
-        send(clients_to_notify[i], message, BUFSZ, 0);
+        fflush(stdout);
       }
     }
-    fflush(stdout);
+    if (messages_count > 0) {
+      messages_count = 0;
+    }
+    if (offset == 0) {
+      memset(buffer, 0, BUF_SIZE);
+    }
   }
 
   printf("[Client Connection] Client disconnected in %s\n", caddrstr);
   close(cdata->sock);
+  // @todo remove client subscriptions
   pthread_exit(EXIT_SUCCESS);
 }
 

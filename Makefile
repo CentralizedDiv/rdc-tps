@@ -1,7 +1,7 @@
 all:
 	gcc -Wall -c ./src/common/common.c
-	gcc -Wall ./src/client.c common.o -lpthread -o client
-	gcc -Wall ./src/server.c common.o -lpthread -o server
+	gcc -Wall ./src/client.c common.o -lpthread -o cliente
+	gcc -Wall ./src/server.c common.o -lpthread -o servidor
 
 clean:
-	rm common.o client server
+	rm common.o cliente servidor
