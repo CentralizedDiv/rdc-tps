@@ -9,7 +9,7 @@
 
 #include "common/common.h"
 
-#define BUFSZ 1024
+#define BUF_SIZE 500
 #define LINE_END 10
 #define SPACE 32
 #define ADD_SUB 43
@@ -20,6 +20,7 @@
 #define UPPER_Z 90
 #define LOWER_A 97
 #define LOWER_Z 122
+#define MAX_ASCII 127
 
 struct thread_data {
   int sock;
@@ -43,6 +44,24 @@ void add_if_not_exists(int value, int **arr, int *size) {
     (*arr)[*size] = value;
     *size = *size + 1;
   }
+}
+
+void remove_element(int **arr, int idx, int *size) {
+  int new_size = *size - 1;
+  int *temp = malloc(new_size * sizeof(int));
+
+  if (idx != 0) {
+    memcpy(temp, *arr, idx * sizeof(int));
+  }
+
+  if (idx != new_size) {
+    memcpy(temp + idx, *arr + idx + 1, (new_size - idx) * sizeof(int));  // copy everything AFTER the index
+  }
+
+  *arr = realloc(*arr, new_size * sizeof(int));
+  memcpy(*arr, temp, new_size * sizeof(int));
+  *size = (*size) - 1;
+  free(temp);
 }
 
 void usage(int argc, char **argv) {
@@ -152,15 +171,16 @@ void check_kill(char *message) {
   }
 }
 
-#define BUF_SIZE 500
-
 // returns -1 for erros, or an int that is the offset for the next recv
 int read_buffer(char *buffer, char ***messages, int *messages_count) {
   int i;
   int current_message_start = 0;
   int found_line_end = 0;
   for (i = 0; i < strlen(buffer); i++) {
-    // @todo check invalid chars
+    if (buffer[i] > MAX_ASCII) {
+      // Something wrong, invalid character found
+      return -1;
+    }
     if (buffer[i] == LINE_END) {
       *messages_count = (*messages_count) + 1;
       *messages = realloc(*messages, (*messages_count) * sizeof(char *));
@@ -201,8 +221,8 @@ void *client_thread(void *data) {
   struct thread_data *cdata = (struct thread_data *)data;
   struct sockaddr_in caddr = cdata->addr;
 
-  char caddrstr[BUFSZ];
-  addrtostr(&caddr, caddrstr, BUFSZ);
+  char caddrstr[256];
+  addrtostr(&caddr, caddrstr, 256);
   printf("[Client Connection] Client connected in %s\n", caddrstr);
 
   int offset = 0;
@@ -212,9 +232,6 @@ void *client_thread(void *data) {
   memset(buffer, 0, BUF_SIZE);
 
   while (1) {
-    char message[BUFSZ];
-    memset(message, 0, BUFSZ);
-
     size_t count = recv(cdata->sock, buffer + offset, BUF_SIZE, 0);
     // If client disconnected
     if (count == 0) {
@@ -224,6 +241,8 @@ void *client_thread(void *data) {
     offset = read_buffer(buffer, &messages, &messages_count);
     if (offset == -1) {
       send(cdata->sock, "Invalid message!\n", 18, 0);
+      messages_count = 0;
+      offset = 0;
     } else {
       int i;
       for (i = 0; i < messages_count; i++) {
@@ -272,7 +291,15 @@ void *client_thread(void *data) {
 
   printf("[Client Connection] Client disconnected in %s\n", caddrstr);
   close(cdata->sock);
-  // @todo remove client subscriptions
+  // Remove client subscriptions
+  int i, j;
+  for (i = 0; i < *(cdata->tags_count); i++) {
+    for (j = 0; j < cdata->subs_count[i]; j++) {
+      if (cdata->subs[i][j] == cdata->sock) {
+        remove_element(&(cdata->subs[i]), j, &(cdata->subs_count[i]));
+      }
+    }
+  }
   pthread_exit(EXIT_SUCCESS);
 }
 
