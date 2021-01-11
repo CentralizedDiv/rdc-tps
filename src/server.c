@@ -308,6 +308,7 @@ int main(int argc, char **argv) {
     usage(argc, argv);
   }
 
+  // Connecting to the network
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
     logexit("socket");
@@ -337,6 +338,9 @@ int main(int argc, char **argv) {
   addrtostr(&addr, addrstr, 1024);
   printf("\n\t [Server Init] Bound to %s, waiting connections...\n\n", addrstr);
 
+  // END - Connecting to the network
+
+  // Tags subscription variables
   int tags_count = 0;
   char **tags = malloc(tags_count * sizeof(char *));
   int **subs = malloc(tags_count * sizeof(int *));
