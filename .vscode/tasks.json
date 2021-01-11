@@ -39,7 +39,7 @@
                 "${workspaceFolder}/build/common.o",
                 "-lpthread",
                 "-o",
-                "${workspaceFolder}/build/servidor"
+                "${workspaceFolder}/build/server"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

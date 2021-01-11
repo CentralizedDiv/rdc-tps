@@ -8,7 +8,7 @@
             "name": "Build and Debug Server",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/servidor",
+            "program": "${workspaceFolder}/build/server",
             "args": ["9000"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
