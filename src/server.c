@@ -333,8 +333,8 @@ int main(int argc, char **argv) {
     logexit("listen");
   }
 
-  char addrstr[BUFSZ];
-  addrtostr(&addr, addrstr, BUFSZ);
+  char addrstr[1024];
+  addrtostr(&addr, addrstr, 1024);
   printf("\n\t [Server Init] Bound to %s, waiting connections...\n\n", addrstr);
 
   int tags_count = 0;
