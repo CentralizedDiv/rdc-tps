@@ -16,7 +16,12 @@ void addrtostr(const struct sockaddr_in *addr, char *str, size_t strsize) {
   snprintf(str, strsize, "%s %hu", addrstr, port);
 }
 
+/**
+ * Add client_socket to the tag_name's array of subs 
+ * Return 1 in succes otherwise 0
+ * */
 int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, int ***subs, int **subs_count) {
+  // Found tag index
   int i;
   int tag_index = -1;
   for (i = 0; i < *tags_count; i++) {
@@ -25,6 +30,7 @@ int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, 
     }
   }
 
+  // If not found tag index, create it and add client_socket to its subs
   if (tag_index == -1) {
     tag_index = *tags_count;
     *tags_count = (*tags_count) + 1;
@@ -39,6 +45,7 @@ int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, 
     (*subs)[tag_index][0] = client_socket;
     return 1;
   } else {
+    // Found client index
     int found_client = 0;
     for (i = 0; i < (*subs_count)[tag_index]; i++) {
       if ((*subs)[tag_index][i] == client_socket) {
@@ -48,6 +55,7 @@ int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, 
     if (found_client) {
       return 0;
     } else {
+      // Append client_socket in subs[tag_index]
       (*subs_count)[tag_index] = ((*subs_count)[tag_index]) + 1;
       (*subs)[tag_index] = realloc((*subs)[tag_index], (*subs_count)[tag_index] * sizeof(int));
       ((*subs)[tag_index])[((*subs_count)[tag_index]) - 1] = client_socket;
@@ -56,7 +64,12 @@ int subscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, 
   }
 }
 
+/**
+ * Remove client_socket from the tag_name's array of subs 
+ * Return 1 in succes otherwise 0
+ * */
 int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count, int ***subs, int **subs_count) {
+  // Found tag index
   int i;
   int tag_index = -1;
   for (i = 0; i < *tags_count; i++) {
@@ -68,6 +81,7 @@ int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count
   if (tag_index == -1) {
     return 0;
   } else {
+    // Found client index inside subs[tag_index]
     int client_index = -1;
     for (i = 0; i < (*subs_count)[tag_index]; i++) {
       if ((*subs)[tag_index][i] == client_socket) {
@@ -75,6 +89,7 @@ int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count
       }
     }
     if (client_index != -1) {
+      // Copy everything but client_index from subs[tag_index] to aux
       int *aux = malloc((*subs_count)[tag_index] * sizeof(int));
       int j = 0;
       for (i = 0; i < (*subs_count)[tag_index]; i++) {
@@ -83,6 +98,8 @@ int unsubscribe(int client_socket, char *tag_name, char ***tags, int *tags_count
           j++;
         }
       }
+
+      // Copy aux to subs[tag_index]
       memcpy(((*subs)[tag_index]), aux, sizeof(*aux));
       (*subs_count)[tag_index] = (*subs_count)[tag_index] - 1;
       free(aux);

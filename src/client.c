@@ -62,6 +62,7 @@ int main(int argc, char **argv) {
     usage(argc, argv);
   }
 
+  // Connecting to the network
   struct sockaddr_in addr;
   uint16_t port = (uint16_t)atoi(argv[2]);
   port = htons(port);
@@ -86,12 +87,16 @@ int main(int argc, char **argv) {
   addrtostr(&addr, addrstr, BUFSZ);
   printf("\n\t [Client Init] Connected to %s\n\n", addrstr);
 
+  // END - Connecting to the network
+
   struct sock *sdata = malloc(sizeof(*sdata));
   sdata->csock = fd;
 
+  // Listen to keyboard
   pthread_t kbtid;
   pthread_create(&kbtid, NULL, listenkb, sdata);
 
+  // Listen to network
   pthread_t nwtid;
   pthread_create(&nwtid, NULL, listennw, sdata);
 

@@ -31,6 +31,9 @@ struct thread_data {
   int *subs_count;
 };
 
+/**
+ * Add value to arr and increase size of value is not already in arr
+ * */
 void add_if_not_exists(int value, int **arr, int *size) {
   int i, exists = -1;
   for (i = 0; i < *size; i++) {
@@ -46,6 +49,9 @@ void add_if_not_exists(int value, int **arr, int *size) {
   }
 }
 
+/**
+ * Remove element arr[idx] and decrease size
+ * */
 void remove_element(int **arr, int idx, int *size) {
   int new_size = *size - 1;
   int *temp = malloc(new_size * sizeof(int));
@@ -70,6 +76,11 @@ void usage(int argc, char **argv) {
   exit(EXIT_FAILURE);
 }
 
+/**
+ * Validate string searching for a valid tag, if it is valid, save it to buf and its size to size
+ * 
+ * Return 1 for valid and 0 if some invalid char was found in this tag 
+ * */
 int validate_tag(char **string, char **buf, size_t size) {
   int i;
   int tag_size;
@@ -90,7 +101,14 @@ int validate_tag(char **string, char **buf, size_t size) {
   return 1;
 }
 
+/**
+ * Search for subscription tags (+/-string-with-just-letters), subscribing or unsubscribing them 
+ * to the client present in cdata->sock
+ * 
+ * Returns a feedback message
+ * */
 char *check_subscription_tags(char *message, struct thread_data *cdata) {
+  // Check for +/-
   int prefix = -1;
   if (message[0] == ADD_SUB) {
     prefix = ADD_SUB;
@@ -137,26 +155,36 @@ char *check_subscription_tags(char *message, struct thread_data *cdata) {
   return NULL;
 }
 
+/**
+ * Search for tags (#string-with-just-letters) inside messages, saving them to
+ * tags and how many to tags_count
+ * */
 void check_tags(char *message, char ***tags, int *tags_count) {
   int message_size = strlen(message);
   int i;
   for (i = 0; i < message_size; i++) {
+    // If char is #
     if (message[i] == HASHTAG) {
+      // Ignore everything before the #
       int sliced_message_size = message_size - i - 1;
       char *sliced_message = malloc(sliced_message_size * sizeof(char));
       memcpy(sliced_message, message + i + 1, sliced_message_size);
 
+      // Validate if the string after # is a valid tag
       char *tag;
       if (validate_tag(&sliced_message, &tag, sliced_message_size)) {
         *tags_count = *tags_count + 1;
         *tags = realloc(*tags, *tags_count * sizeof(char *));
         (*tags)[*tags_count - 1] = tag;
+        // If it is valid, keep looping the message after this tag
         i += strlen(tag);
       } else {
         char *next_space = strchr(sliced_message, SPACE);
+        // If the invalid tag is the last thing on this message, just ignore
         if (next_space == NULL) {
           break;
         } else {
+          // otherwise keep looping after the next space
           i += (int)(next_space - sliced_message);
         }
       }
@@ -164,14 +192,23 @@ void check_tags(char *message, char ***tags, int *tags_count) {
   }
 }
 
+/**
+ * Exit the program if ##kill is found inside message
+ * */
 void check_kill(char *message) {
+  // Remove \n
   message[strcspn(message, "\n")] = 0;
   if (strcmp(message, "##kill") == 0) {
     logexit("kill");
   }
 }
 
-// returns -1 for erros, or an int that is the offset for the next recv
+/**
+ * Return the size of the last message found on buffer, saving all messages found to
+ * message and how many to messages_count
+ * 
+ * This return should be used as the offset for the next recv
+ * */
 int read_buffer(char *buffer, char ***messages, int *messages_count) {
   int i;
   int current_message_start = 0;
@@ -182,6 +219,7 @@ int read_buffer(char *buffer, char ***messages, int *messages_count) {
       return -1;
     }
     if (buffer[i] == LINE_END) {
+      // End of message found
       *messages_count = (*messages_count) + 1;
       *messages = realloc(*messages, (*messages_count) * sizeof(char *));
       (*messages)[(*messages_count) - 1] = malloc((i - current_message_start) * sizeof(char));
@@ -193,10 +231,11 @@ int read_buffer(char *buffer, char ***messages, int *messages_count) {
   }
 
   if (found_line_end) {
-    // If there is another message after the last message of this buffer
+    // If there is a unfinished message after the last message of this buffer
     if (buffer[strlen(buffer) - 1] != LINE_END) {
-      // Copy the current message to the start of the buffer
+      // Copy it to the start of the buffer
       memmove(buffer, &buffer[current_message_start], strlen(buffer) - current_message_start);
+      // Return where it ends
       return strlen(buffer) - current_message_start;
     } else {  // There is no splitted message
       return 0;
@@ -217,7 +256,13 @@ int read_buffer(char *buffer, char ***messages, int *messages_count) {
   }
 }
 
+/**
+ * Handles clients connections in parallel
+ *  
+ * @arg thread_data *data - pointer to thread_data cointaining tags and socket information
+ * */
 void *client_thread(void *data) {
+  // Parse data
   struct thread_data *cdata = (struct thread_data *)data;
   struct sockaddr_in caddr = cdata->addr;
 
@@ -225,6 +270,7 @@ void *client_thread(void *data) {
   addrtostr(&caddr, caddrstr, 256);
   printf("[Client Connection] Client connected in %s\n", caddrstr);
 
+  // Initialize message related variables
   int offset = 0;
   int messages_count = 0;
   char **messages = malloc(sizeof(char *));
@@ -232,33 +278,44 @@ void *client_thread(void *data) {
   memset(buffer, 0, BUF_SIZE);
 
   while (1) {
+    // Listen for messages from this client
     size_t count = recv(cdata->sock, buffer + offset, BUF_SIZE, 0);
+
     // If client disconnected
     if (count == 0) {
       break;
     }
 
+    // When a message is received, handle it
     offset = read_buffer(buffer, &messages, &messages_count);
+
+    // If something is wrong with the message, it could have invalid characters or be larger than the expected (500 bytes)
     if (offset == -1) {
       send(cdata->sock, "Invalid message!\n", 18, 0);
       messages_count = 0;
       offset = 0;
     } else {
+      // Loop through all messages in this buffer
       int i;
       for (i = 0; i < messages_count; i++) {
         char *message = messages[i];
         printf("[Message] From: %s, %d bytes: %s\n", caddrstr, (int)count, message);
+
+        // Check if it is a ##kill message
         check_kill(message);
 
+        // Check if it is a subscription message
         char *feedback = check_subscription_tags(message, cdata);
         if (feedback != NULL) {
           send(cdata->sock, feedback, strlen(feedback), 0);
         }
 
+        // Check if this message has tags
         int tags_count = 0;
         char **tags = malloc(sizeof(char *));
         check_tags(message, &tags, &tags_count);
         if (tags_count > 0) {
+          // If it has, check which clients are subscribed to them
           int i, j, k;
           int clients_count = 0;
           int *clients_to_notify = malloc(sizeof(int));
@@ -274,13 +331,19 @@ void *client_thread(void *data) {
             }
           }
           strcat(message, "\n");
+
+          // Loop through all clients subscribed to the tags found in this message sending it to them
           for (i = 0; i < clients_count; i++) {
             send(clients_to_notify[i], message, strlen(message), 0);
           }
         }
+
+        // Clean the console
         fflush(stdout);
       }
     }
+
+    // Reset state
     if (messages_count > 0) {
       messages_count = 0;
     }
@@ -291,6 +354,7 @@ void *client_thread(void *data) {
 
   printf("[Client Connection] Client disconnected in %s\n", caddrstr);
   close(cdata->sock);
+
   // Remove client subscriptions
   int i, j;
   for (i = 0; i < *(cdata->tags_count); i++) {
@@ -346,6 +410,7 @@ int main(int argc, char **argv) {
   int **subs = malloc(tags_count * sizeof(int *));
   int *subs_count = malloc(tags_count * sizeof(int));
 
+  // Listen for connections
   while (1) {
     struct sockaddr_in caddr;
     socklen_t caddrlen = sizeof(caddr);
@@ -355,6 +420,7 @@ int main(int argc, char **argv) {
       logexit("accept");
     }
 
+    // When a connection is requested create a thread passing the tags as arguments
     struct thread_data *cdata = malloc(sizeof(*cdata));
     cdata->sock = sock;
     cdata->tags_count = &tags_count;
