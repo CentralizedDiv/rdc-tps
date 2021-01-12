@@ -2,7 +2,7 @@
 
 Publish/Subscribe Message Server created for 2020/1 Computer Network course at UFMG
 
-Run make and two binaries cliente and server should be created
+Run make and two binaries client and server should be created
 
 Run the server using `./server <port>` Run the server using `./client 127.0.0.1 <port>`
 
