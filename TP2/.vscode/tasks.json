@@ -1,0 +1,61 @@
+{
+    "tasks": [
+        {
+            "label": "Create build folder",
+            "command": "/usr/bin/mkdir",
+            "args": ["-p", "${workspaceFolder}/build"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "cppbuild",
+            "label": "Build Common",
+            "command": "/usr/bin/gcc",
+            "args": [
+                "-c",
+                "${workspaceFolder}/src/common/common.c",
+                "-o",
+                "${workspaceFolder}/build/common.o"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "type": "cppbuild",
+            "label": "Build Server",
+            "command": "/usr/bin/gcc",
+            "args": [
+                "-g",
+                "${workspaceFolder}/src/server.c",
+                "${workspaceFolder}/build/common.o",
+                "-lpthread",
+                "-o",
+                "${workspaceFolder}/build/server"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn":[
+                "Create build folder",
+                "Build Common"
+            ]
+        }
+    ],
+    "version": "2.0.0"
+}
